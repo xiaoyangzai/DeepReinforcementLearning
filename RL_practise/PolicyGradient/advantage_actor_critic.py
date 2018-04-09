@@ -2,15 +2,20 @@
 import gym
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 class A2Cagent:
-    def __init__(self,state_size,action_size,hidden_dim = 25,discount_factor=0.99,actor_lr = 0.001,critic_lr=0.005,hidden_layers = 1):
+    def __init__(self,env,hidden_dim = 29,discount_factor=0.99,actor_lr = 0.0001,critic_lr=0.01,hidden_layers = 1,load_model = False,model_path = None,max_episodes = 1000):
         self.render = True
-        self.state_size = state_size
-        self.action_size = action_size
+
+        self.state_size = env.observation_space.shape[0]
+        self.action_size = env.action_space.n
         self.hidden_dim = hidden_dim 
         self.value_size = 1
-        self.load_model = False
+        self.load_model = load_model 
+        self.model_path = model_path
+        self.max_episodes = max_episodes
+        self.env = env
 
         self.discount_factor = discount_factor 
         self.actor_lr = actor_lr 
@@ -18,10 +23,15 @@ class A2Cagent:
 
         self.build_actor()
         self.build_critic()
+        self.saver = tf.train.Saver()
 
         #init session
         self.session = tf.InteractiveSession()
-        self.session.run(tf.global_variables_initializer())
+        if self.load_model:
+            self.saver.restore(self.session,model_path)
+            print("model has restored from file: %s"%self.model_path)
+        else:
+            self.session.run(tf.global_variables_initializer())
 
         print "Actor-Critic network has initilized!!"
 
@@ -97,43 +107,56 @@ class A2Cagent:
         policy = self.session.run(self.actor_yperdict,feed_dict={self.actor_state_input: state}).flatten() 
         return np.random.choice(self.action_size,1,p=policy)[0]
 
+    def learning(self):
+        print("A2Cagent begin to learn....")
+        max_score_count = 0
+        for e in range(1,self.max_episodes):
+            done = False
+            score = 0
+            state = self.env.reset()
+            state = np.reshape(state,[1,self.state_size])
+            while not done:
+                if self.render:
+                    self.env.render()
+
+                action = self.choose_action(state)
+                next_state,reward,done,info = self.env.step(action)
+                next_state = np.reshape(next_state,[1,self.state_size])
+                #reward = reward if not done or score == 499 else -100
+
+                self.train_model(state,action,reward,next_state,done)
+                score += reward
+                state = next_state
+
+                if done:
+                    if score == 500:
+                        max_score_count += 1
+                    else:
+                        max_score_count = 0
+            print("Episode[%d] Score: %d"%(e,score))
+            #save model each 100 episodes
+            if e % 20 == 0 and self.model_path is not None:
+                self.saver.save(self.session,self.model_path)
+            if max_score_count >= 25:
+                break
+
+
+
+def draw_reward(score_list):
+    fig, ax = plt.subplots()
+    x = [i for i in range(len(score_list))]
+    ax.plot(x,score_list)
+    ax.set_xlabel("Episode Index",fontsize=20)
+    ax.set_ylabel("Reward",fontsize=20)
+    plt.yticks([i for i in range(0,1000,50)])
+    plt.title("Advantage Actor-Critic(A2C)")
+    plt.show()
+
 
 def main():
     env = gym.make('CartPole-v1')
-    #env = gym.make('MountainCar-v0')
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
-
-    agent = A2Cagent(state_size,action_size)
-
-    scores,episodes = [],[]
-    
-    max_episodes = 1000
-    for e in range(1,max_episodes):
-        done = False
-        score = 0
-        state = env.reset()
-        state = np.reshape(state,[1,state_size])
-
-        while not done:
-            if agent.render:
-                env.render()
-
-            action = agent.choose_action(state)
-            next_state,reward,done,info = env.step(action)
-            next_state = np.reshape(next_state,[1,state_size])
-            #reward = reward if not done or score == 499 else -100
-
-            agent.train_model(state,action,reward,next_state,done)
-            score += reward
-            state = next_state
-
-            if done:
-                #score = score if score == 500 else score + 100
-                scores.append(score)
-                episodes.append(e)
-                print("Episode: ",e," Score: ",score)
-
+    agent = A2Cagent(env,load_model = True,model_path = "./Model/a2c_model.ckpt")
+    agent.learning()
     return
 
 if __name__ == "__main__":

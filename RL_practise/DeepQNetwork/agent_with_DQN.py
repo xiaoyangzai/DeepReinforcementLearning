@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 
 import tensorflow as tf
 from gym import spaces,Env 
@@ -7,10 +7,10 @@ import random
 from DeepQNetwork_version2015 import DeepQNetwork 
 import time
 from collections import deque
-import time
+import matplotlib.pyplot as plt
 
 class Agent():
-    def __init__(self,env: Env=None,max_episodes = 10000,hidden_dim = 20,replay_size = 5000,learning_rate = 0.01,gamma = 0.9,batch_size = 64,min_epsilon = 0.01,max_step_each_episode = 50,epsilon_decay = True):
+    def __init__(self,env,max_episodes = 10000,hidden_dim = 20,replay_size = 5000,learning_rate = 0.01,gamma = 0.9,batch_size = 64,min_epsilon = 0.01,max_step_each_episode = 50,epsilon_decay = True):
         self.env = env
         self.max_step_each_episode = max_step_each_episode
         if isinstance(env.observation_space, spaces.Discrete):
@@ -28,6 +28,7 @@ class Agent():
         self.replay_size = replay_size
         self.epsilon_decay = epsilon_decay
         self.dqn = DeepQNetwork(dim_input = self.state_dim,dim_output = self.action_dim,dim_hidden = hidden_dim,learning_rate = learning_rate,gamma = gamma) 
+        self.score_list = []
 
     @property
     def epsilon(self):
@@ -71,7 +72,18 @@ class Agent():
         return len(self.replay_buffer)
 
     
+    def draw_reward(self,score_list):
+        fig, ax = plt.subplots()
+        x = [i for i in range(len(score_list))]
+        ax.plot(x,score_list)
+        ax.set_xlabel("Episode Index",fontsize=20)
+        ax.set_ylabel("Reward",fontsize=20)
+        plt.yticks([i for i in range(0,700,50)])
+        plt.title("Deep Q-learning Network")
+        plt.show()
+
     def learning(self):
+        score_list = []
         for episode in range(1,self.max_episodes,1):
             episode_reward = 0.0
             state = self.env.reset()
@@ -85,6 +97,8 @@ class Agent():
                 episode_reward += reward
                 state = next_state
                 self.env.render()
+
+            score_list.append(episode_reward)
             if episode % 5 == 0:
                 print("Episode[%d] start to training....Reward[%.2f] Epsilon[%.2f]"%(episode,episode_reward,self.cur_epsilon))
 
@@ -107,6 +121,7 @@ class Agent():
                 state = self.env.reset()
                 print('episode: %d Evaluation Avg Reward:%.2f\t Epsilon: %.2f Done: %d/10'%(episode,total_reward/10,self.cur_epsilon,successful_num))
         print("DQN has been trained successfully!")
+        self.draw_reward(score_list)
         done = False
         for i in range(50):
             total_reward = 0.0
