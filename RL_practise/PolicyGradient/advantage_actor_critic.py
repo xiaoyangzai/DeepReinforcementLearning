@@ -10,6 +10,8 @@ class A2Cagent:
 
         self.state_size = env.observation_space.shape[0]
         self.action_size = env.action_space.n
+        print("state size:",self.state_size)
+        print("action size:",self.action_size)
         self.hidden_dim = hidden_dim 
         self.value_size = 1
         self.load_model = load_model 
@@ -27,12 +29,13 @@ class A2Cagent:
 
         #init session
         self.session = tf.InteractiveSession()
-        if self.load_model:
-            self.saver.restore(self.session,model_path)
-            print("model has restored from file: %s"%self.model_path)
-        else:
-            self.session.run(tf.global_variables_initializer())
-
+        self.session.run(tf.global_variables_initializer())
+        if self.load_model and self.model_path is not None:
+            try:
+                self.saver.restore(self.session,model_path)
+                print("model has restored from file: %s"%self.model_path)
+            except:
+                print("load model from %s failed!"%self.model_path)
         print "Actor-Critic network has initilized!!"
 
     def weight_variable(self,shape):
