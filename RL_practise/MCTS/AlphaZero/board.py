@@ -17,7 +17,6 @@ class Board(object):
         #player1 and player2
         self.players = [1,2]
         self.start_player = int(kwargs.get('start_player',0))
-        self.init_board()
         return
 
     def init_board(self,start_player=0):
@@ -181,6 +180,9 @@ class Board(object):
                 break
 
         return count
+
+    def get_current_player(self):
+        return self.current_player
     
     def show_board(self):
         os.system("clear")
@@ -236,44 +238,108 @@ class game():
         self.height = int(kwargs.get('height',8))
         #location:player
         self.states = {}
-
         self.n_in_row = int(kwargs.get('n_in_row',5))
         #player1 and player2
         self.start_player = int(kwargs.get('start_player',0))
         self.board = Board(width = self.width,height = self.height,n_in_row = self.n_in_row,start_player = self.start_player)
         return
 
-    def start(self):
-        Winner = self.start_player
+    def start_play(self,player1,player2,is_shown = False):
+        self.board.init_board()
+        p1, p2 = self.board.players
+        player1.set_player_index(p1)
+        player2.set_player_index(p2)
+        players = {p1: player1,p2: player2}
+        print("Index of player1: %d\tIndex of player2: %d"%(p1,p2))
+
         win_flag = -1 
+        winner = -1
         while True:
-            self.board.show_board()
-            h,w = self.select_location() 
-            move = self.board.location_to_move(h,w)
-            win_flag,Winner = self.board.do_move(move)
-            self.board.show_board()
+            if is_shown:
+                self.board.show_board()
+            current_player_index = self.board.current_player
+            current_player = players[current_player_index] 
+
+            #play output the move
+            move = current_player.get_action(self.board)
+
+            #exacute the move
+            win_flag,winner = self.board.do_move(move)
+            if is_shown:
+                self.board.show_board()
             if win_flag < 0:
                 print("location [%d,%d] is invaled! Try again!"%(h,w))
             if win_flag > 0:
                 break
 
         if win_flag == 1:
-            print("========* [%d] player wins the game! *========"%Winner)
+            print("========* [%d] player wins the game! *========"%winner)
         else:
             print("No Winner!!")
+        return win_flag,winner
+
+    def start_self_play(self,player,is_shown,temp=1e-3):
+        self.board.init_board()
+        players = {p1: player1,p2: player2}
+        win_flag = -1 
+        winner = -1
+        states, mcts_probs, players_order = [], [], []
+        rewards_z = None
+        while True:
+            current_player_index = self.board.current_player
+            current_player = players[current_player_index] 
+            move, move_probs = player.get_action(self.board,temp=temp,return_prob = True) 
+
+            #store the state
+            states.append(self.board.current_state())
+            mcts_probs.append(move_probs)
+            players_order.append(current_player_index)
+
+            #perform a move
+            win_flag,winner = self.board.do_move(move)
+            if is_shown:
+                self.board.show_board()
+            if win_flag < 0:
+                print("location [%d,%d] is invaled! Try again!"%(h,w))
+            if win_flag > 0:
+                break
+
+        rewards_z = np.array(len(players_order))
+        if win_flag == 1:
+            print("========* [%d] player wins the game! *========"%winner)
+            #reward of each move
+            rewards_z[np.array(players_order) == winner] = 1.0
+            rewards_z[np.array(players_order) != winner] = -1.0
+            #reset MCTS root node
+            player.reset_player()
+        else:
+            print("No Winner!!")
+        return win_flag,winner,zip(states,mcts_probs,players_order)
+
+class human_player():
+    def __init__(self,index = -1):
+        self.index = -1
+        print("Human play[%d] has creator!!"%index)
+
+    def get_action(self,board = None):
+        if self.index < 0:
+            print("The player havn't index, please set index for this player!")
+            return -1
+        h,w = map(int,raw_input("please [%d] player input loaction[x,x]:"%board.current_player).split(','))
+        move = board.location_to_move(h,w)
+        return move 
+    def set_player_index(self,index):
+        self.index = index
         return
-
-    def select_location(self):
-
-        h,w = map(int,raw_input("please [%d] player input loaction[x,x]:"%self.board.current_player).split(','))
-        return h,w
 
 
 
 
 def main():
     g = game(width = 10,height = 10, n_in_row = 3)
-    g.start()
+    player1 = human_player(1)
+    player2 = human_player(2)
+    g.start_play(player1,player2,is_shown = True)
     print("Game Over!!")
     return
 
