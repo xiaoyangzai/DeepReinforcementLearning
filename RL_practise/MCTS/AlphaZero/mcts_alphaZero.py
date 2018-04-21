@@ -120,3 +120,73 @@ class MCTS(object):
             leaf_value = 0.0
         node.update_recursive(leaf_value)
 
+    def get_move_probs(self,state,temp=1e-3):
+        """
+            Run all playouts sequentially and return the avaiable actions and their corrresponding probalities.
+            state: the current game board
+            temp: temperature parameter in (0,1] controls the level of exploration
+        """
+        #search algorithm
+        #Select step -> Expand and evaluate step -> backup step
+        for n in range(self._n_playout):
+            state_copy = copy.deepcopy(state)
+            self._playout(state_copy)
+
+        #Play step
+        act_visits = [(act, node._n_visits) for act,node in self._children.items()]
+        acts, visits = zip(*act_visits)
+        act_probs = softmax(1.0/temp * np.log(np.array(visits) + 1e-10))
+
+        return acts, act_probs
+
+    def update_with_move(self,last_move):
+        """
+            Update the tree after performing the move. The child node corresponding to the played action becomes the new root node. The subtree below this child is retained , while the remainder of the tree is discarded.
+        """
+        if last_move in self._root._children:
+            self._root = self._root._children[last_move]
+            self._root._parent = None
+        else:
+            self._root = TreeNode(None,1.0)
+
+    def __str__(self):
+        return "MCTS"
+
+
+class MCTSPlayer(object):
+    """
+        AI player based on MCTS
+    """
+    def __init__(self, policy_value_network,c_puct = 5, n_playout = 2000, is_selfplay = 0):
+        self.mcts = MCTS(policy_value_network,c_puct,n_playout)
+        self._is_selfplay = is_selfplay
+
+    def set_player_index(self,p):
+        self.player_index = p
+
+    def reset_player(self):
+        #clear the MC tree.
+        self.mcts.update_with_move(-1)
+
+    def get_action(self, board,temp = 1e-3,return_prob = False):
+        sensible_moves = board.avaiables
+
+        if len(sensible_moves) > 0:
+            acts, probs = self.mcts.get_move_probs(board, temp)
+            move_probs[list(acts)] = probs
+            if self._is_selfplay:
+                noise_p = 0.75 * probs + 0.25*np.random.dirichlet(0.03*np.ones(len(probs)))
+                move = np.random.choice(acts,noise_p)
+                self.mcts.update_with_move(move)
+            else:
+                move = np.random.choice(acts, p=probs)
+                self.mcts.update_with_move(-1)
+            if return_prob:
+                return move, move_probs
+            else:
+                return move
+        else:
+            print("WARNING: the board is full")
+            return -1
+    def __str__(self):
+        return "MCTS player index: "%self.player_index
