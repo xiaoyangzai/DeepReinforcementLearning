@@ -109,6 +109,7 @@ class Produce_consumer:
             self.sems.V(index = 0)
 
 def main():
+    a = threading.Event()
     pc = Produce_consumer(n_consumers=5,n_producers=4)
     pc.start_produce_consumer()
     pc.join_threads()
