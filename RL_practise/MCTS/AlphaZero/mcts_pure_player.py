@@ -72,7 +72,7 @@ class TreeNode(object):
         
     def update_recursive(self,leaf_value):
         if self._parent:
-            self._parent.update_recursive(leaf_value)
+            self._parent.update_recursive(-leaf_value)
         self.update(leaf_value)
 
     def is_leaf(self):
@@ -102,6 +102,8 @@ class MCTS_pure(object):
             Run a single playout from the root to the leaf, getting a value at the leaf and back up through their parents. 
             State is modified in-place, so a copy must be provided.
         """
+        current_player = state.get_current_player()
+        leaf_player = current_player
         node = self._root
         while(1):
             if is_shown:
@@ -109,6 +111,7 @@ class MCTS_pure(object):
             if node.is_leaf():
                 break
             #select policy in tree is using the UCB
+            leaf_player = state.get_current_player()
             action, node = node.select(self._c_puct)
             state.do_move(action)
 
@@ -121,7 +124,11 @@ class MCTS_pure(object):
 
         leaf_value = self._evaluate_rollout(state,is_shown=is_shown)
         #Step 3: back up 
-        node.update_recursive(leaf_value)
+        if leaf_player == current_player:
+            node.update_recursive(leaf_value)
+        else:
+            node.update_recursive(-leaf_value)
+
 
         return True if leaf_value == 1 else False 
 
@@ -176,7 +183,7 @@ class MCTS_pure(object):
         print("Win probability: %d-%d"%(win_count,self._n_playout))
         h,w = state.move_to_location(temp[0][0])
         print("MCTS player will move to location[%d,%d]"%(h,w))
-        time.sleep(10)
+        time.sleep(2)
         #After all simulation games, return the most visited action from the current state
         return max(self._root._children.items(),key=lambda act_node:act_node[1]._n_visits)[0]
    
